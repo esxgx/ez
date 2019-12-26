@@ -67,10 +67,10 @@ static unsigned int lzma_mf_do_hc4_find(struct lzma_mf *mf,
 	const uint32_t hash_2 = mt_calc_hash_2(ip);
 	const uint32_t delta2 = pos - mf->hash[hash_2];
 	const uint32_t hash_3 = mt_calc_hash_3(ip, hash_2);
+	const uint32_t delta3 = pos - mf->hash[LZMA_HASH_3_BASE + hash_3];
 	const uint32_t hash_value = mt_calc_hash_4(ip, mf->hashbits);
 	uint32_t cur_match = mf->hash[LZMA_HASH_4_BASE + hash_value];
 	unsigned int count, bestlen, depth;
-	uint32_t delta3;
 	const uint8_t *matchend;
 
 	mf->hash[hash_2] = pos;
@@ -91,8 +91,6 @@ static unsigned int lzma_mf_do_hc4_find(struct lzma_mf *mf,
 		if (matchend >= ilimit)
 			goto out;
 	}
-
-	delta3 = pos - mf->hash[LZMA_HASH_3_BASE + hash_3];
 
 	/* check the 3-byte match */
 	if (delta2 != delta3 && delta3 <= mf->max_distance &&
@@ -254,7 +252,12 @@ int lzma_mf_reset(struct lzma_mf *mf, unsigned int dictsize)
 	}
 
 	mf->max_distance = dictsize - 1;
-	mf->offset = 0;
+	/*
+	 * Set the initial value as mf->max_distance + 1.
+	 * This would avoid hash zero initialization.
+	 */
+	mf->offset = mf->max_distance + 1;
+
 	mf->cur = 0;
 	mf->nice_len = 32;
 	mf->lookahead = 0;
