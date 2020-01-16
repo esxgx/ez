@@ -143,6 +143,8 @@ out:
 	return count;
 }
 
+#define lzma_mf_hc4_find	lzma_mf_do_hc4_find
+
 unsigned int lzma_mf_find(struct lzma_mf *mf, struct lzma_match *matches)
 {
 	const uint8_t *ip = mf->buffer + mf->cur;

@@ -133,6 +133,33 @@ out_literal:
 	return 1;
 }
 
+#include <stdlib.h>
+#include <stdio.h>
+
+int main(void)
+{
+	struct lzma_encoder lzmaenc = {0};
+	unsigned int back_res = 0, len_res = 0;
+	unsigned int nliterals;
+
+	lzmaenc.mf.buffer = malloc(65536);
+	lzmaenc.mf.iend = lzmaenc.mf.buffer + 65536;
+
+	memcpy(lzmaenc.mf.buffer, "abcde", sizeof("abcde"));
+
+	lzma_mf_reset(&lzmaenc.mf, 65536);
+	nliterals = lzma_get_optimum_fast(&lzmaenc, &back_res, &len_res);
+	printf("nlits %d (%d %d)\n", nliterals, back_res, len_res);
+	nliterals = lzma_get_optimum_fast(&lzmaenc, &back_res, &len_res);
+	printf("nlits %d (%d %d)\n", nliterals, back_res, len_res);
+	nliterals = lzma_get_optimum_fast(&lzmaenc, &back_res, &len_res);
+	printf("nlits %d (%d %d)\n", nliterals, back_res, len_res);
+	nliterals = lzma_get_optimum_fast(&lzmaenc, &back_res, &len_res);
+	printf("nlits %d (%d %d)\n", nliterals, back_res, len_res);
+
+}
+
+
 void lzma_encode(struct lzma_encoder *lzma,
 		 const uint8_t *in, unsigned int size)
 {
