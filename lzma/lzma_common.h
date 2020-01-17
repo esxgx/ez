@@ -15,6 +15,39 @@
 #include <ez/unaligned.h>
 
 /*
+ * State
+ */
+
+/*
+ * This enum is used to track which events have occurred most recently and
+ * in which order. This information is used to predict the next event.
+ *
+ * Events:
+ *  - Literal: One 8-bit byte
+ *  - Match: Repeat a chunk of data at some distance
+ *  - Long repeat: Multi-byte match at a recently seen distance
+ *  - Short repeat: One-byte repeat at a recently seen distance
+ *
+ * The event names are in from STATE_oldest_older_previous. REP means
+ * either short or long repeated match, and NONLIT means any non-literal.
+ */
+enum lzma_lzma_state {
+	STATE_LIT_LIT,
+	STATE_MATCH_LIT_LIT,
+	STATE_REP_LIT_LIT,
+	STATE_SHORTREP_LIT_LIT,
+	STATE_MATCH_LIT,
+	STATE_REP_LIT,
+	STATE_SHORTREP_LIT,
+	STATE_LIT_MATCH,
+	STATE_LIT_LONGREP,
+	STATE_LIT_SHORTREP,
+	STATE_NONLIT_MATCH,
+	STATE_NONLIT_REP,
+	STATE_MAX,
+};
+
+/*
  * LZMA Matchlength
  */
 
@@ -49,6 +82,8 @@
  * re-encoding the actual distance value.
  */
 #define REPS 4
+
+#define MARK_LIT ((uint32_t)-1)
 
 #endif
 

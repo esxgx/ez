@@ -70,14 +70,15 @@ static unsigned int lzma_mf_do_hc4_find(struct lzma_mf *mf,
 	const uint32_t delta3 = pos - mf->hash[LZMA_HASH_3_BASE + hash_3];
 	const uint32_t hash_value = mt_calc_hash_4(ip, mf->hashbits);
 	uint32_t cur_match = mf->hash[LZMA_HASH_4_BASE + hash_value];
-	unsigned int count, bestlen, depth;
+	unsigned int bestlen, depth;
 	const uint8_t *matchend;
+	struct lzma_match *mp;
 
 	mf->hash[hash_2] = pos;
 	mf->hash[LZMA_HASH_3_BASE + hash_3] = pos;
 	mf->hash[LZMA_HASH_4_BASE + hash_value] = pos;
 
-	count = 0;
+	mp = matches;
 	bestlen = 0;
 
 	/* check the 2-byte match */
@@ -85,9 +86,8 @@ static unsigned int lzma_mf_do_hc4_find(struct lzma_mf *mf,
 		matchend = ez_memcmp(ip + 2, ip - delta2 + 2, ilimit);
 
 		bestlen = matchend - ip;
-		matches[0].len = bestlen;
-		matches[0].dist = delta2;
-		count = 1;
+		*(mp++) = (struct lzma_match) { .len = bestlen,
+						.dist = delta2 };
 		if (matchend >= ilimit)
 			goto out;
 	}
@@ -99,9 +99,8 @@ static unsigned int lzma_mf_do_hc4_find(struct lzma_mf *mf,
 
 		if (matchend - ip > bestlen) {
 			bestlen = matchend - ip;
-			matches[count].len = bestlen;
-			matches[count].dist = delta3;
-			++count;
+			*(mp++) = (struct lzma_match) { .len = bestlen,
+							.dist = delta3 };
 			if (matchend >= ilimit)
 				goto out;
 		}
@@ -128,9 +127,8 @@ static unsigned int lzma_mf_do_hc4_find(struct lzma_mf *mf,
 				continue;
 
 			bestlen = matchend - ip;
-			matches[count].len = bestlen;
-			matches[count].dist = delta;
-			++count;
+			*(mp++) = (struct lzma_match) { .len = bestlen,
+							.dist = delta };
 			if (matchend >= ilimit)
 				break;
 		}
@@ -140,7 +138,7 @@ out:
 	mf->chain[mf->chaincur] = cur_match;
 	mf_move(mf);
 	++mf->lookahead;
-	return count;
+	return mp - matches;
 }
 
 #define lzma_mf_hc4_find	lzma_mf_do_hc4_find
