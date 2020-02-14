@@ -234,8 +234,9 @@ void lzma_mf_fill(struct lzma_mf *mf, const uint8_t *in, unsigned int size)
 	mf->iend += size;
 }
 
-int lzma_mf_reset(struct lzma_mf *mf, unsigned int dictsize)
+int lzma_mf_reset(struct lzma_mf *mf, const struct lzma_mf_properties *p)
 {
+	const uint32_t dictsize = p->dictsize;
 	unsigned int new_hashbits;
 
 	if (!dictsize) {
@@ -279,11 +280,12 @@ int lzma_mf_reset(struct lzma_mf *mf, unsigned int dictsize)
 	 */
 	mf->offset = mf->max_distance + 1;
 
+	mf->nice_len = p->nice_len;
+	mf->depth = p->depth;
+
 	mf->cur = 0;
-	mf->nice_len = 32;
 	mf->lookahead = 0;
 	mf->chaincur = 0;
-	mf->depth = 4;
 	return 0;
 }
 

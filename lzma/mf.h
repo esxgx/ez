@@ -10,6 +10,12 @@
 #include <ez/util.h>
 #include "lzma_common.h"
 
+struct lzma_mf_properties {
+	uint32_t dictsize;
+
+	uint32_t nice_len, depth;
+};
+
 /*
  * an array used used by the LZ-based encoder to hold
  * the length-distance pairs found by LZMA matchfinder.
@@ -69,7 +75,7 @@ struct lzma_mf {
 int lzma_mf_find(struct lzma_mf *mf, struct lzma_match *matches, bool finish);
 void lzma_mf_skip(struct lzma_mf *mf, unsigned int n);
 void lzma_mf_fill(struct lzma_mf *mf, const uint8_t *in, unsigned int size);
-int lzma_mf_reset(struct lzma_mf *mf, unsigned int dictsize);
+int lzma_mf_reset(struct lzma_mf *mf, const struct lzma_mf_properties *p);
 
 #endif
 

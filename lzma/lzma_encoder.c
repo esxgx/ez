@@ -67,7 +67,7 @@ static inline unsigned int get_len_state(unsigned int len)
 struct lzma_properties {
 	uint32_t lc, lp, pb;
 
-	uint32_t dict_size;
+	struct lzma_mf_properties mf;
 };
 
 struct lzma_length_encoder {
@@ -459,9 +459,12 @@ static int __lzma_encode(struct lzma_encoder *lzma)
 	do {
 		unsigned int nlits;
 		uint32_t back, len;
-		int err;
+		int err = lzma_get_optimum_fast(lzma, &back, &len);
 
+		if (err)
+			break;
 
+		printf("nlits %d (%d %d)\n", nlits, back, len);
 
 		err = encode_sequence(lzma, nlits, back, len, &pos32);
 	} while (err);
@@ -484,7 +487,7 @@ static int lzma_encoder_reset(struct lzma_encoder *lzma,
 {
 	unsigned int i, j, oldlclp, lclp;
 
-	lzma_mf_reset(&lzma->mf, props->dict_size);
+	lzma_mf_reset(&lzma->mf, &props->mf);
 	rc_reset(&lzma->rc);
 
 	/* refer to "The main loop of decoder" of lzma specification */
@@ -539,14 +542,29 @@ static int lzma_encoder_reset(struct lzma_encoder *lzma,
 	return 0;
 }
 
+void lzma_default_properties(struct lzma_properties *p, int level)
+{
+	if (level < 0)
+		level = 5;
+
+	p->lc = 3;
+	p->lp = 0;
+	p->pb = 2;
+	p->mf.nice_len = (level < 7 ? 32 : 64);	/* LZMA SDK numFastBytes */
+	p->mf.depth = (16 + (p->mf.nice_len >> 1)) >> 1;
+}
+
 #include <stdlib.h>
 #include <stdio.h>
+
+
+const char text[] = "Hello world Hello world Hello world";
 
 int main(void)
 {
 	struct lzma_encoder lzmaenc = {0};
 	struct lzma_properties props = {
-		.dict_size = 65536,
+		.mf.dictsize = 65536,
 	};
 	unsigned int back_res = 0, len_res = 0;
 	unsigned int nliterals;
@@ -554,10 +572,10 @@ int main(void)
 	unsigned int position = 0;
 
 	lzmaenc.mf.buffer = malloc(65536);
-	lzmaenc.mf.iend = lzmaenc.mf.buffer + 65536;
+	memcpy(lzmaenc.mf.buffer, text, sizeof(text));
+	lzmaenc.mf.iend = lzmaenc.mf.buffer + sizeof(text);
 
-	memcpy(lzmaenc.mf.buffer, "abcde", sizeof("abcde"));
-
+	lzma_default_properties(&props, 5);
 	lzma_encoder_reset(&lzmaenc, &props);
 	nliterals = lzma_get_optimum_fast(&lzmaenc, &back_res, &len_res);
 	printf("nlits %d (%d %d)\n", nliterals, back_res, len_res);
