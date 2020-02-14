@@ -46,14 +46,6 @@ static void mf_move(struct lzma_mf *mf)
 	DBG_BUGON(mf->buffer + mf->cur > mf->iend);
 }
 
-static void mf_nop(struct lzma_mf *mf)
-{
-	++mf->cur;
-	DBG_BUGON(mf->buffer + mf->cur > mf->iend);
-
-	++mf->nops;
-}
-
 static unsigned int lzma_mf_do_hc4_find(struct lzma_mf *mf,
 					struct lzma_match *matches)
 {
@@ -141,44 +133,22 @@ out:
 	return mp - matches;
 }
 
-#define lzma_mf_hc4_find	lzma_mf_do_hc4_find
-
-unsigned int lzma_mf_find(struct lzma_mf *mf, struct lzma_match *matches)
-{
-	const uint8_t *ip = mf->buffer + mf->cur;
-	const uint8_t *iend = max((const uint8_t *)mf->iend,
-				  ip + MATCH_LEN_MAX);
-	const unsigned int count = lzma_mf_hc4_find(mf, matches);
-	unsigned int i;
-
-	i = count;
-	while (i) {
-		const uint8_t *cur = ip + matches[i].len;
-
-		--i;
-		if (matches[i].len < mf->nice_len || cur >= iend)
-			break;
-
-		/* extend the candicated match as far as it can */
-		matches[i].len = ez_memcmp(cur, cur - matches[i].dist,
-					   iend) - ip;
-	}
-	return count;
-}
-
 /* aka. lzma_mf_hc4_skip */
 void lzma_mf_skip(struct lzma_mf *mf, unsigned int bytetotal)
 {
 	const unsigned int hashbits = mf->hashbits;
 	unsigned int bytecount = 0;
 
+	bytetotal += mf->unhashedskip;
+	mf->unhashedskip = 0;
+
 	do {
 		const uint8_t *ip = mf->buffer + mf->cur;
 		uint32_t pos, hash_2, hash_3, hash_value;
 
 		if (mf->iend - ip < 4) {
-			mf_nop(mf);
-			continue;
+			mf->unhashedskip = bytetotal - bytecount;
+			break;
 		}
 
 		pos = mf->cur + mf->offset;
@@ -199,6 +169,57 @@ void lzma_mf_skip(struct lzma_mf *mf, unsigned int bytetotal)
 	} while (++bytecount < bytetotal);
 
 	mf->lookahead += bytecount;
+}
+
+static int lzma_mf_hc4_find(struct lzma_mf *mf,
+			    struct lzma_match *matches, bool finish)
+{
+	if (mf->unhashedskip) {
+		lzma_mf_skip(mf, mf->unhashedskip);
+
+		if (mf->unhashedskip)
+			return -ERANGE;
+	}
+
+	if (mf->iend - &mf->buffer[mf->cur] < 4) {
+		mf->eod |= finish;
+		return -ERANGE;
+	}
+	return lzma_mf_do_hc4_find(mf, matches);
+}
+
+int lzma_mf_find(struct lzma_mf *mf, struct lzma_match *matches, bool finish)
+{
+	const uint8_t *ip = mf->buffer + mf->cur;
+	const uint8_t *iend = max((const uint8_t *)mf->iend,
+				  ip + MATCH_LEN_MAX);
+	unsigned int i;
+	int ret;
+
+	if (mf->unhashedskip) {
+		lzma_mf_skip(mf, mf->unhashedskip);
+
+		if (mf->unhashedskip)
+			return -ERANGE;
+	}
+
+	ret = lzma_mf_hc4_find(mf, matches, finish);
+	if (ret <= 0)
+		return ret;
+
+	i = ret;
+	do {
+		const uint8_t *cur = ip + matches[i].len;
+
+		--i;
+		if (matches[i].len < mf->nice_len || cur >= iend)
+			break;
+
+		/* extend the candicated match as far as it can */
+		matches[i].len = ez_memcmp(cur, cur - matches[i].dist,
+					   iend) - ip;
+	} while (i);
+	return ret;
 }
 
 void lzma_mf_fill(struct lzma_mf *mf, const uint8_t *in, unsigned int size)

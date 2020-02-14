@@ -79,6 +79,8 @@ struct lzma_encoder {
 	struct lzma_mf mf;
 	struct lzma_rc_encoder rc;
 
+	bool finish;
+
 	enum lzma_lzma_state state;
 
 	/* the four most recent match distances */
@@ -113,8 +115,8 @@ struct lzma_encoder {
 
 #define change_pair(smalldist, bigdist) (((bigdist) >> 7) > (smalldist))
 
-static unsigned int lzma_get_optimum_fast(struct lzma_encoder *lzma,
-					  uint32_t *back_res, uint32_t *len_res)
+static int lzma_get_optimum_fast(struct lzma_encoder *lzma,
+				 uint32_t *back_res, uint32_t *len_res)
 {
 	struct lzma_mf *const mf = &lzma->mf;
 	const uint32_t nice_len = mf->nice_len;
@@ -124,9 +126,15 @@ static unsigned int lzma_get_optimum_fast(struct lzma_encoder *lzma,
 	unsigned int longest_match_length, longest_match_back;
 	unsigned int best_replen, best_rep;
 	const uint8_t *ip, *ilimit;
+	int ret;
 
 	if (!mf->lookahead) {
-		matches_count = lzma_mf_find(mf, lzma->fast.matches);
+		ret = lzma_mf_find(mf, lzma->fast.matches, lzma->finish);
+
+		if (ret < 0)
+			return ret;
+
+		matches_count = ret;
 	} else {
 		matches_count = lzma->fast.matches_count;
 	}
@@ -196,10 +204,21 @@ static unsigned int lzma_get_optimum_fast(struct lzma_encoder *lzma,
 	}
 
 	nlits = 0;
-	while ((lzma->fast.matches_count =
-		lzma_mf_find(mf, lzma->fast.matches))) {
-		const struct lzma_match *const victim =
-			&lzma->fast.matches[lzma->fast.matches_count - 1];
+
+
+	while (1) {
+		const struct lzma_match *victim;
+
+		ret = lzma_mf_find(mf, lzma->fast.matches, lzma->finish);
+
+		if (ret < 0)
+			break;
+
+		lzma->fast.matches_count = ret;
+		if (!ret)
+			break;
+
+		victim = &lzma->fast.matches[lzma->fast.matches_count - 1];
 
 		if (victim->len + nlits + 1 < longest_match_length)
 			break;

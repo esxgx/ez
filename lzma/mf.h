@@ -61,10 +61,12 @@ struct lzma_mf {
 	uint32_t max_distance;
 
 	/* the number of bytes unhashed, and wait to roll back later */
-	uint32_t nops;
+	uint32_t unhashedskip;
+
+	bool eod;
 };
 
-unsigned int lzma_mf_find(struct lzma_mf *mf, struct lzma_match *matches);
+int lzma_mf_find(struct lzma_mf *mf, struct lzma_match *matches, bool finish);
 void lzma_mf_skip(struct lzma_mf *mf, unsigned int n);
 void lzma_mf_fill(struct lzma_mf *mf, const uint8_t *in, unsigned int size);
 int lzma_mf_reset(struct lzma_mf *mf, unsigned int dictsize);
