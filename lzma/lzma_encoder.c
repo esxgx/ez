@@ -558,7 +558,7 @@ void lzma_default_properties(struct lzma_properties *p, int level)
 #include <stdio.h>
 
 
-const char text[] = "Hello world Hello world Hello world";
+const char text[] = "HHHHHHHH";
 
 int main(void)
 {

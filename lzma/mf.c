@@ -9,6 +9,7 @@
 #include <ez/bitops.h>
 #include "mf.h"
 #include "bytehash.h"
+#include <stdio.h>
 
 #define LZMA_HASH_2_SZ		(1U << 8)
 #define LZMA_HASH_3_SZ		(1U << 16)
@@ -54,7 +55,7 @@ static unsigned int lzma_mf_do_hc4_find(struct lzma_mf *mf,
 	const uint32_t pos = cur + mf->offset;
 	const uint32_t nice_len = mf->nice_len;
 	const uint8_t *ilimit =
-		ip + nice_len <= mf->iend ? ip + nice_len : mf->iend;
+		ip + nice_len < mf->iend ? ip + nice_len : mf->iend;
 
 	const uint32_t hash_2 = mt_calc_hash_2(ip);
 	const uint32_t delta2 = pos - mf->hash[hash_2];
@@ -80,6 +81,9 @@ static unsigned int lzma_mf_do_hc4_find(struct lzma_mf *mf,
 		bestlen = matchend - ip;
 		*(mp++) = (struct lzma_match) { .len = bestlen,
 						.dist = delta2 };
+
+		printf("found match2: %d %d %d\n", mf->cur, delta2, bestlen);
+
 		if (matchend >= ilimit)
 			goto out;
 	}
@@ -93,6 +97,8 @@ static unsigned int lzma_mf_do_hc4_find(struct lzma_mf *mf,
 			bestlen = matchend - ip;
 			*(mp++) = (struct lzma_match) { .len = bestlen,
 							.dist = delta3 };
+			printf("found match3: %d %d %d\n", mf->cur, delta3, bestlen);
+
 			if (matchend >= ilimit)
 				goto out;
 		}
@@ -121,6 +127,9 @@ static unsigned int lzma_mf_do_hc4_find(struct lzma_mf *mf,
 			bestlen = matchend - ip;
 			*(mp++) = (struct lzma_match) { .len = bestlen,
 							.dist = delta };
+
+			printf("found match4: %d %d %d\n", mf->cur, delta, bestlen);
+
 			if (matchend >= ilimit)
 				break;
 		}
