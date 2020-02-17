@@ -179,7 +179,7 @@ static int lzma_get_optimum_fast(struct lzma_encoder *lzma,
 	 * the normal match is long enough to use directly.
 	 */
 	longest_match_length = lzma->fast.matches[matches_count - 1].len;
-	longest_match_back = lzma->fast.matches[matches_count - 1].len;
+	longest_match_back = lzma->fast.matches[matches_count - 1].dist;
 	if (longest_match_length >= nice_len) {
 		*back_res = longest_match_back;
 		*len_res = longest_match_length;
