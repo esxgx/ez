@@ -572,7 +572,17 @@ void lzma_default_properties(struct lzma_properties *p, int level)
 #include <stdio.h>
 
 
+#if 0
 const char text[] = "HABEABDABABABHHHEAAAAAAAA";
+#else
+const char text[] = "The only time we actually leave the path spinning is if we're truncating "
+"a small amount and don't actually free an extent, which is not a common "
+"occurrence.  We have to set the path blocking in order to add the "
+"delayed ref anyway, so the first extent we find we set the path to "
+"blocking and stay blocking for the duration of the operation.  With the "
+"upcoming file extent map stuff there will be another case that we have "
+"to have the path blocking, so just swap to blocking always.";
+#endif
 
 int main(void)
 {
@@ -582,17 +592,24 @@ int main(void)
 	};
 	unsigned int back_res = 0, len_res = 0;
 	unsigned int nliterals;
-
 	unsigned int position = 0;
+	uint8_t buf[512];
 
 	lzmaenc.mf.buffer = malloc(65536);
 	memcpy(lzmaenc.mf.buffer, text, sizeof(text));
 	lzmaenc.mf.iend = lzmaenc.mf.buffer + sizeof(text);
+	lzmaenc.op = buf;
+	lzmaenc.oend = buf + sizeof(buf);
 
 	lzma_default_properties(&props, 5);
 	lzma_encoder_reset(&lzmaenc, &props);
 
 	__lzma_encode(&lzmaenc);
+	rc_flush(&lzmaenc.rc);
+
+	rc_encode(&lzmaenc.rc, &lzmaenc.op, lzmaenc.oend);
+	printf("encoded length: %u\n", lzmaenc.op - buf);
+
 
 #if 0
 	nliterals = lzma_get_optimum_fast(&lzmaenc, &back_res, &len_res);
