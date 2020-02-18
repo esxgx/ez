@@ -88,7 +88,7 @@ struct lzma_encoder {
 	/* the four most recent match distances */
 	uint32_t reps[LZMA_NUM_REPS];
 
-	unsigned int pbMask;
+	unsigned int pbMask, lpMask;
 
 	unsigned int lc, lp;
 
@@ -280,7 +280,7 @@ static int literal(struct lzma_encoder *lzma, uint32_t position)
 	const uint8_t *ptr = &mf->buffer[mf->cur - mf->lookahead];
 
 	probability *probs = lzma->literal +
-		3 * ((((position << 8) + ptr[-1]) & lzma->pbMask) << lzma->lc);
+		3 * ((((position << 8) + ptr[-1]) & lzma->lpMask) << lzma->lc);
 
 	if (is_literal_state(lzma->state)) {
 		/*
@@ -551,6 +551,9 @@ static int lzma_encoder_reset(struct lzma_encoder *lzma,
 	for (i = 0; i < (0x300 << lclp); i++)
 		lzma->literal[i] = kProbInitValue;
 
+	lzma->pbMask = (1 << props->pb) - 1;
+	lzma->lpMask = (0x100 << props->lp) - (0x100 >> props->lc);
+
 	lzma_length_encoder_reset(&lzma->lenEnc);
 	lzma_length_encoder_reset(&lzma->repLenEnc);
 	return 0;
@@ -595,7 +598,7 @@ int main(void)
 	unsigned int position = 0;
 	uint8_t buf[512];
 
-	lzmaenc.mf.buffer = malloc(65536);
+	lzmaenc.mf.buffer = malloc(65536) + 1;
 	memcpy(lzmaenc.mf.buffer, text, sizeof(text));
 	lzmaenc.mf.iend = lzmaenc.mf.buffer + sizeof(text);
 	lzmaenc.op = buf;
