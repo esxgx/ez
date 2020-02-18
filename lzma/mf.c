@@ -146,17 +146,25 @@ out:
 void lzma_mf_skip(struct lzma_mf *mf, unsigned int bytetotal)
 {
 	const unsigned int hashbits = mf->hashbits;
+	unsigned int unhashedskip = mf->unhashedskip;
 	unsigned int bytecount = 0;
 
-	bytetotal += mf->unhashedskip;
-	mf->unhashedskip = 0;
+	if (unhashedskip) {
+		bytetotal += unhashedskip;
+		mf->cur -= unhashedskip;
+		mf->lookahead -= unhashedskip;
+		mf->unhashedskip = 0;
+	}
 
 	do {
 		const uint8_t *ip = mf->buffer + mf->cur;
 		uint32_t pos, hash_2, hash_3, hash_value;
 
 		if (mf->iend - ip < 4) {
-			mf->unhashedskip = bytetotal - bytecount;
+			unhashedskip = bytetotal - bytecount;
+
+			mf->unhashedskip = unhashedskip;
+			mf->cur += unhashedskip;
 			break;
 		}
 
@@ -177,7 +185,7 @@ void lzma_mf_skip(struct lzma_mf *mf, unsigned int bytetotal)
 		mf_move(mf);
 	} while (++bytecount < bytetotal);
 
-	mf->lookahead += bytecount;
+	mf->lookahead += bytetotal;
 }
 
 static int lzma_mf_hc4_find(struct lzma_mf *mf,
