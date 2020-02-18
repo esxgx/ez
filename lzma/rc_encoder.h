@@ -106,7 +106,7 @@ static inline void rc_flush(struct lzma_rc_encoder *rc)
 }
 
 static inline bool rc_shift_low(struct lzma_rc_encoder *rc,
-				uint8_t *out, uint8_t *pos, uint8_t sz)
+				uint8_t **ppos, uint8_t *oend)
 {
 	if (rc->low >> 24 != UINT8_MAX) {
 		const uint32_t carrybit = rc->low >> 32;
@@ -114,17 +114,17 @@ static inline bool rc_shift_low(struct lzma_rc_encoder *rc,
 		DBG_BUGON(carrybit > 1);
 
 		/* first or interrupted byte */
-		if (unlikely(*pos == sz))
+		if (unlikely(*ppos >= oend))
 			return true;
-		out[*pos++] = rc->firstbyte + carrybit;
+		*(*ppos)++ = rc->firstbyte + carrybit;
 
 		while (rc->extended_bytes) {
 			--rc->extended_bytes;
-			if (unlikely(*pos == sz)) {
+			if (unlikely(*ppos >= oend)) {
 				rc->firstbyte = UINT8_MAX;
 				return true;
 			}
-			out[*pos++] = carrybit - 1;
+			*(*ppos)++ = carrybit - 1;
 		}
 		rc->firstbyte = rc->low >> 24;
 	} else {
@@ -135,14 +135,14 @@ static inline bool rc_shift_low(struct lzma_rc_encoder *rc,
 }
 
 static inline bool rc_encode(struct lzma_rc_encoder *rc,
-			     uint8_t *out, uint8_t *pos, uint8_t sz)
+			     uint8_t **ppos, uint8_t *oend)
 {
 	DBG_BUGON(rc->count > RC_SYMBOLS_MAX);
 
 	while (rc->pos < rc->count) {
 		/* Normalize */
 		if (rc->range < RC_TOP_VALUE) {
-			if (rc_shift_low(rc, out, pos, sz))
+			if (rc_shift_low(rc, ppos, oend))
 				return true;
 
 			rc->range <<= RC_SHIFT_BITS;
@@ -185,7 +185,7 @@ static inline bool rc_encode(struct lzma_rc_encoder *rc,
 
 			/* Flush the last five bytes (see rc_flush()) */
 			do {
-				if (rc_shift_low(rc, out, pos, sz))
+				if (rc_shift_low(rc, ppos, oend))
 					return true;
 			} while (++rc->pos < rc->count);
 

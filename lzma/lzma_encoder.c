@@ -80,6 +80,7 @@ struct lzma_encoder {
 	struct lzma_mf mf;
 	struct lzma_rc_encoder rc;
 
+	uint8_t *op, *oend;
 	bool finish;
 
 	enum lzma_lzma_state state;
@@ -401,10 +402,18 @@ static void rep_match(struct lzma_encoder *lzma, const uint32_t pos_state,
 	}
 }
 
+static int flush_symbol(struct lzma_encoder *lzma)
+{
+	if (rc_encode(&lzma->rc, &lzma->op, lzma->oend))
+		return -ENOSPC;
+
+	return 0;
+}
+
 static int encode_symbol(struct lzma_encoder *lzma, uint32_t back,
 			 uint32_t len, uint32_t *position)
 {
-	int err = do_checkpoint(lzma);
+	int err = flush_symbol(lzma);
 
 	if (!err) {
 		const uint32_t pos_state = *position & lzma->pbMask;
