@@ -85,7 +85,7 @@ struct lzma_encoder {
 	enum lzma_lzma_state state;
 
 	/* the four most recent match distances */
-	uint32_t reps[REPS];
+	uint32_t reps[LZMA_NUM_REPS];
 
 	unsigned int pbMask;
 
@@ -152,7 +152,7 @@ static int lzma_get_optimum_fast(struct lzma_encoder *lzma,
 		  mf->iend : ip + MATCH_LEN_MAX);
 
 	/* look for all valid repeat matches */
-	for (i = 0; i < REPS; ++i) {
+	for (i = 0; i < LZMA_NUM_REPS; ++i) {
 		const uint8_t *const repp = ip - lzma->reps[i];
 		uint32_t len;
 
@@ -236,7 +236,7 @@ static int lzma_get_optimum_fast(struct lzma_encoder *lzma,
 	if (nlits) {
 		*len_res = 0;
 	} else {
-		*back_res = REPS + longest_match_back;
+		*back_res = LZMA_NUM_REPS + longest_match_back;
 		*len_res = longest_match_length;
 		lzma_mf_skip(mf, longest_match_length - 2);
 	}
@@ -419,19 +419,20 @@ static int encode_symbol(struct lzma_encoder *lzma, uint32_t back,
 		} else {
 			rc_bit(&lzma->rc, &lzma->isMatch[state][pos_state], 0);
 
-			if (back < REPS) {
+			if (back < LZMA_NUM_REPS) {
 				/* repeated match */
 				rc_bit(&lzma->rc, &lzma->isRep[state], 1);
 				rep_match(lzma, pos_state, back, len);
 			} else {
 				/* normal match */
 				rc_bit(&lzma->rc, &lzma->isRep[state], 0);
-				match(lzma, pos_state, back - REPS, len);
+				match(lzma, pos_state,
+				      back - LZMA_NUM_REPS, len);
 			}
 		}
 
 		/* len bytes has been consumed by encoder */
-		DBG_BUGON(mf->lookahead + mf->unhashedskip < len);
+		DBG_BUGON(mf->lookahead < len);
 		mf->lookahead -= len;
 		*position += len;
 	}

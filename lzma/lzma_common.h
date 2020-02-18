@@ -81,7 +81,7 @@ enum lzma_lzma_state {
  * Reusing these distances tend to take less space than
  * re-encoding the actual distance value.
  */
-#define REPS 4
+#define LZMA_NUM_REPS	4
 
 #define MARK_LIT ((uint32_t)-1)
 
