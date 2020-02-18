@@ -9,6 +9,7 @@
 #include "lzma_common.h"
 #include "mf.h"
 #include "rc_encoder.h"
+#include <stdio.h>
 
 #define kNumBitModelTotalBits	11
 #define kBitModelTotal		(1 << kNumBitModelTotalBits)
@@ -561,7 +562,7 @@ void lzma_default_properties(struct lzma_properties *p, int level)
 #include <stdio.h>
 
 
-const char text[] = "HHHHHHHH";
+const char text[] = "HABEABDABABABHHHEAAAAAAAA";
 
 int main(void)
 {
