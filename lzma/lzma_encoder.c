@@ -430,7 +430,7 @@ static int encode_symbol(struct lzma_encoder *lzma, uint32_t back,
 		}
 
 		/* len bytes has been consumed by encoder */
-		DBG_BUGON(mf->lookahead < len);
+		DBG_BUGON(mf->lookahead + mf->unhashedskip < len);
 		mf->lookahead -= len;
 		*position += len;
 	}
@@ -448,6 +448,8 @@ static int encode_sequence(struct lzma_encoder *lzma, unsigned int nliterals,
 			return err;
 		--nliterals;
 	}
+	if (!len)	/* no match */
+		return 0;
 	return encode_symbol(lzma, back, len, position);
 }
 
@@ -457,17 +459,18 @@ static int __lzma_encode(struct lzma_encoder *lzma)
 	int err;
 
 	do {
-		unsigned int nlits;
 		uint32_t back, len;
-		int err = lzma_get_optimum_fast(lzma, &back, &len);
+		int nlits;
 
-		if (err)
+		nlits = lzma_get_optimum_fast(lzma, &back, &len);
+
+		if (nlits < 0)
 			break;
 
 		printf("nlits %d (%d %d)\n", nlits, back, len);
 
 		err = encode_sequence(lzma, nlits, back, len, &pos32);
-	} while (err);
+	} while (!err);
 	return err;
 }
 
@@ -577,6 +580,10 @@ int main(void)
 
 	lzma_default_properties(&props, 5);
 	lzma_encoder_reset(&lzmaenc, &props);
+
+	__lzma_encode(&lzmaenc);
+
+#if 0
 	nliterals = lzma_get_optimum_fast(&lzmaenc, &back_res, &len_res);
 	printf("nlits %d (%d %d)\n", nliterals, back_res, len_res);
 	encode_sequence(&lzmaenc, nliterals, back_res, len_res, &position);
@@ -586,7 +593,7 @@ int main(void)
 	printf("nlits %d (%d %d)\n", nliterals, back_res, len_res);
 	nliterals = lzma_get_optimum_fast(&lzmaenc, &back_res, &len_res);
 	printf("nlits %d (%d %d)\n", nliterals, back_res, len_res);
-
+#endif
 }
 
 
