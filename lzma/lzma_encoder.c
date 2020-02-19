@@ -482,7 +482,7 @@ static int __lzma_encode(struct lzma_encoder *lzma)
 		if (nlits < 0)
 			break;
 
-		printf("nlits %d (%d %d)\n", nlits, back, len);
+		printf("pos %u nlits %d (%d %d)\n", pos32, nlits, back, len);
 
 		err = encode_sequence(lzma, nlits, back, len, &pos32);
 	} while (!err);
@@ -581,6 +581,8 @@ void lzma_default_properties(struct lzma_properties *p, int level)
 
 #if 0
 const char text[] = "HABEABDABABABHHHEAAAAAAAA";
+#elif 1
+const char text[] = "abcde_bcdefgh_abcdefghxxxxxxx";
 #else
 const char text[] = "The only time we actually leave the path spinning is if we're truncating "
 "a small amount and don't actually free an extent, which is not a common "
