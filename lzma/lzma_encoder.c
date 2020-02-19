@@ -207,7 +207,6 @@ static int lzma_get_optimum_fast(struct lzma_encoder *lzma,
 
 	nlits = 0;
 
-
 	while (1) {
 		const struct lzma_match *victim;
 
@@ -222,16 +221,19 @@ static int lzma_get_optimum_fast(struct lzma_encoder *lzma,
 
 		victim = &lzma->fast.matches[lzma->fast.matches_count - 1];
 
-		if (victim->len + nlits + 1 < longest_match_length)
+		/* both sides have eliminated '+ nlits' */
+		if (victim->len + 1 < longest_match_length)
 			break;
 
-		if (victim->len + nlits + 1 == longest_match_length &&
+		if (victim->len + 1 == longest_match_length &&
 		    !change_pair(victim->dist + nlits, longest_match_back))
 			break;
 
-		if (victim->len + nlits == longest_match_length &&
+		if (victim->len == longest_match_length &&
 		    victim->dist + nlits >= longest_match_back)
 			break;
+		longest_match_length = victim->len;
+		longest_match_back = victim->dist;
 		++nlits;
 	}
 	if (nlits) {
