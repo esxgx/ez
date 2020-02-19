@@ -212,8 +212,10 @@ static int lzma_get_optimum_fast(struct lzma_encoder *lzma,
 
 		ret = lzma_mf_find(mf, lzma->fast.matches, lzma->finish);
 
-		if (ret < 0)
+		if (ret < 0) {
+			lzma->fast.matches_count = 0;
 			break;
+		}
 
 		lzma->fast.matches_count = ret;
 		if (!ret)
@@ -241,7 +243,7 @@ static int lzma_get_optimum_fast(struct lzma_encoder *lzma,
 	} else {
 		*back_res = LZMA_NUM_REPS + longest_match_back;
 		*len_res = longest_match_length;
-		lzma_mf_skip(mf, longest_match_length - 2);
+		lzma_mf_skip(mf, longest_match_length - 2 + (ret < 0));
 	}
 	return nlits;
 out_literal:
