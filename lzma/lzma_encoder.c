@@ -238,14 +238,12 @@ static int lzma_get_optimum_fast(struct lzma_encoder *lzma,
 		longest_match_back = victim->dist;
 		++nlits;
 	}
-	if (nlits) {
-		*len_res = 0;
-	} else {
-		*back_res = LZMA_NUM_REPS + longest_match_back;
-		*len_res = longest_match_length;
-		lzma_mf_skip(mf, longest_match_length - 2 + (ret < 0));
-	}
+
+	*back_res = LZMA_NUM_REPS + longest_match_back;
+	*len_res = longest_match_length;
+	lzma_mf_skip(mf, longest_match_length - 2 + (ret < 0));
 	return nlits;
+
 out_literal:
 	*len_res = 0;
 	return 1;
@@ -430,7 +428,7 @@ static int encode_symbol(struct lzma_encoder *lzma, uint32_t back,
 			literal(lzma, *position);
 			len = 1;
 		} else {
-			rc_bit(&lzma->rc, &lzma->isMatch[state][pos_state], 0);
+			rc_bit(&lzma->rc, &lzma->isMatch[state][pos_state], 1);
 
 			if (back < LZMA_NUM_REPS) {
 				/* repeated match */
