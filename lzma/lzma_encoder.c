@@ -323,7 +323,9 @@ static void length(struct lzma_rc_encoder *rc,
 		}
 		sym -= kLenNumLowSymbols;
 	}
-	rc_bittree(rc, probs + 1, kLenNumLowBits, sym);
+	rc_bit(rc, probs, 0);
+	rc_bittree(rc, probs + (pos_state << (kLenNumLowBits + 1)),
+		   kLenNumLowBits, sym);
 }
 
 /* Match */
