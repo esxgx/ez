@@ -102,7 +102,10 @@ static inline void rc_direct(struct lzma_rc_encoder *rc,
 
 static inline void rc_flush(struct lzma_rc_encoder *rc)
 {
-	rc->symbols[rc->count++] = RC_FLUSH;
+	unsigned int i;
+
+	for (i = 0; i < 5; ++i)
+		rc->symbols[rc->count++] = RC_FLUSH;
 }
 
 static inline bool rc_shift_low(struct lzma_rc_encoder *rc,
