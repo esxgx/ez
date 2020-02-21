@@ -40,17 +40,17 @@
 
 #define is_literal_state(state) ((state) < 7)
 
-static unsigned int get_pos_slot2(unsigned int distance)
+/* note that here dist is an zero-based distance */
+static unsigned int get_pos_slot2(unsigned int dist)
 {
-	const unsigned int zz = fls(distance);
+	const unsigned int zz = fls(dist) - 1;
 
-	return (zz + zz) + ((distance >> (zz - 1)) & 1);
+	return (zz + zz) + ((dist >> (zz - 1)) & 1);
 }
 
-static unsigned int get_pos_slot(unsigned int distance)
+static unsigned int get_pos_slot(unsigned int dist)
 {
-	return distance <= 4 ?
-		distance : get_pos_slot2(distance);
+	return dist <= 4 ? dist : get_pos_slot2(dist);
 }
 
 /* aka. GetLenToPosState in LZMA */
@@ -61,9 +61,6 @@ static inline unsigned int get_len_state(unsigned int len)
 
 	return kNumLenToPosStates - 1;
 }
-
-#define get_len_state(len)	\
-	(((len) < kNumLenToPosStates + 1) ? (len) - kMatchMinLen : kNumLenToPosStates - 1)
 
 struct lzma_properties {
 	uint32_t lc, lp, pb;
@@ -183,7 +180,8 @@ static int lzma_get_optimum_fast(struct lzma_encoder *lzma,
 	longest_match_length = lzma->fast.matches[matches_count - 1].len;
 	longest_match_back = lzma->fast.matches[matches_count - 1].dist;
 	if (longest_match_length >= nice_len) {
-		*back_res = longest_match_back;
+		/* it's encoded as 0-based match distances */
+		*back_res = LZMA_NUM_REPS + longest_match_back - 1;
 		*len_res = longest_match_length;
 		lzma_mf_skip(mf, longest_match_length - 1);
 		return 0;
@@ -239,7 +237,8 @@ static int lzma_get_optimum_fast(struct lzma_encoder *lzma,
 		++nlits;
 	}
 
-	*back_res = LZMA_NUM_REPS + longest_match_back;
+	/* it's encoded as 0-based match distances */
+	*back_res = LZMA_NUM_REPS + longest_match_back - 1;
 	*len_res = longest_match_length;
 	lzma_mf_skip(mf, longest_match_length - 2 + (ret < 0));
 	return nlits;
