@@ -149,6 +149,8 @@ static int lzma_get_optimum_fast(struct lzma_encoder *lzma,
 	ilimit = (mf->iend <= ip + MATCH_LEN_MAX ?
 		  mf->iend : ip + MATCH_LEN_MAX);
 
+	best_replen = 0;
+
 	/* look for all valid repeat matches */
 	for (i = 0; i < LZMA_NUM_REPS; ++i) {
 		const uint8_t *const repp = ip - lzma->reps[i];
@@ -510,7 +512,7 @@ static int lzma_encoder_reset(struct lzma_encoder *lzma,
 	/* refer to "The main loop of decoder" of lzma specification */
 	lzma->state = 0;
 	lzma->reps[0] = lzma->reps[1] = lzma->reps[2] =
-		lzma->reps[3] = 2;
+		lzma->reps[3] = 1;
 
 	/* reset all LZMA probability matrices */
 	for (i = 0; i < kNumStates; ++i) {
