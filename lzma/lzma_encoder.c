@@ -293,11 +293,11 @@ static int literal(struct lzma_encoder *lzma, uint32_t position)
 		rc_bittree(&lzma->rc, probs, 8, *ptr);
 	} else {
 		/*
-		 * Previous LZMA-symbol was a match. Use the last byte of
-		 * the match as a "match byte". That is, compare the bits
-		 * of the current literal and the match byte.
+		 * Previous LZMA-symbol was a match. Use the byte + 1
+		 * of the last match as a "match byte". That is, compare
+		 * the bits of the current literal and the match byte.
 		 */
-		const uint8_t match_byte = ptr[-1 + lzma->reps[0]];
+		const uint8_t match_byte = *(ptr - lzma->reps[0]);
 
 		literal_matched(&lzma->rc, probs, match_byte, *ptr);
 	}
@@ -331,9 +331,9 @@ static void length(struct lzma_rc_encoder *rc,
 
 /* Match */
 static void match(struct lzma_encoder *lzma, const uint32_t pos_state,
-		  const uint32_t distance, const uint32_t len)
+		  const uint32_t dist, const uint32_t len)
 {
-	const uint32_t posSlot = get_pos_slot(distance);
+	const uint32_t posSlot = get_pos_slot(dist);
 	const uint32_t lenState = get_len_state(len);
 
 	lzma->state = (is_literal_state(lzma->state) ? 7 : 10);
@@ -343,21 +343,20 @@ static void match(struct lzma_encoder *lzma, const uint32_t pos_state,
 	rc_bittree(&lzma->rc, lzma->posSlotEncoder[lenState],
 		   kNumPosSlotBits, posSlot);
 
-	if (posSlot >= kStartPosModelIndex) {
+	if (dist >= kStartPosModelIndex) {
 		const uint32_t footer_bits = (posSlot >> 1) - 1;
 		const uint32_t base = (2 | (posSlot & 1)) << footer_bits;
-		const uint32_t dist_reduced = distance - base;
 
-		if (posSlot < kNumFullDistances) {
+		if (dist < kNumFullDistances) {
 			/*
 			 * Careful here: base - dist_slot - 1 can be -1, but
 			 * rc_bittree_reverse starts at probs[1], not probs[0].
 			 */
 			rc_bittree_reverse(&lzma->rc,
 					   lzma->posEncoders + base,
-					   footer_bits, distance);
+					   footer_bits, dist);
 		} else {
-			const uint32_t dist_reduced = distance - base;
+			const uint32_t dist_reduced = dist - base;
 
 			rc_direct(&lzma->rc, dist_reduced >> kNumAlignBits,
 				  footer_bits - kNumAlignBits);
@@ -369,7 +368,7 @@ static void match(struct lzma_encoder *lzma, const uint32_t pos_state,
 	lzma->reps[3] = lzma->reps[2];
 	lzma->reps[2] = lzma->reps[1];
 	lzma->reps[1] = lzma->reps[0];
-	lzma->reps[0] = distance;
+	lzma->reps[0] = dist + 1;
 }
 
 static void rep_match(struct lzma_encoder *lzma, const uint32_t pos_state,
