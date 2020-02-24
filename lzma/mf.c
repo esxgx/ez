@@ -137,8 +137,6 @@ static unsigned int lzma_mf_do_hc4_find(struct lzma_mf *mf,
 
 out:
 	mf->chain[mf->chaincur] = cur_match;
-	mf_move(mf);
-	++mf->lookahead;
 	return mp - matches;
 }
 
@@ -194,18 +192,27 @@ void lzma_mf_skip(struct lzma_mf *mf, unsigned int bytetotal)
 static int lzma_mf_hc4_find(struct lzma_mf *mf,
 			    struct lzma_match *matches, bool finish)
 {
-	if (mf->unhashedskip) {
-		lzma_mf_skip(mf, mf->unhashedskip);
+	int ret;
 
-		if (mf->unhashedskip)
+	if (mf->iend - &mf->buffer[mf->cur] < 4) {
+		if (!finish)
+			return -ERANGE;
+
+		mf->eod = true;
+		if (mf->buffer + mf->cur == mf->iend)
 			return -ERANGE;
 	}
 
-	if (mf->iend - &mf->buffer[mf->cur] < 4) {
-		mf->eod |= finish;
-		return -ERANGE;
+	if (!mf->eod) {
+		ret = lzma_mf_do_hc4_find(mf, matches);
+	} else {
+		ret = 0;
+		/* ++mf->unhashedskip; */
+		mf->unhashedskip = 0;	/* bypass all lzma_mf_skip(mf, 0); */
 	}
-	return lzma_mf_do_hc4_find(mf, matches);
+	mf_move(mf);
+	++mf->lookahead;
+	return ret;
 }
 
 int lzma_mf_find(struct lzma_mf *mf, struct lzma_match *matches, bool finish)
@@ -216,12 +223,9 @@ int lzma_mf_find(struct lzma_mf *mf, struct lzma_match *matches, bool finish)
 	unsigned int i;
 	int ret;
 
-	if (mf->unhashedskip) {
-		lzma_mf_skip(mf, mf->unhashedskip);
-
-		if (mf->unhashedskip)
-			return -ERANGE;
-	}
+	/* if (mf->unhashedskip && !mf->eod) */
+	if (mf->unhashedskip)
+		lzma_mf_skip(mf, 0);
 
 	ret = lzma_mf_hc4_find(mf, matches, finish);
 	if (ret <= 0)
