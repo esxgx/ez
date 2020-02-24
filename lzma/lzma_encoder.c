@@ -631,6 +631,7 @@ int main(int argc, char *argv[])
 	lzmaenc.mf.iend = lzmaenc.mf.buffer + sizeof(text);
 	lzmaenc.op = buf;
 	lzmaenc.oend = buf + sizeof(buf);
+	lzmaenc.finish = true;
 
 	lzma_default_properties(&props, 5);
 	lzma_encoder_reset(&lzmaenc, &props);
