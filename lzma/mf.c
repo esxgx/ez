@@ -156,6 +156,9 @@ void lzma_mf_skip(struct lzma_mf *mf, unsigned int bytetotal)
 		mf->unhashedskip = 0;
 	}
 
+	if (unlikely(!bytetotal))
+		return;
+
 	do {
 		const uint8_t *ip = mf->buffer + mf->cur;
 		uint32_t pos, hash_2, hash_3, hash_value;
