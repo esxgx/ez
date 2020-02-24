@@ -482,7 +482,8 @@ static int __lzma_encode(struct lzma_encoder *lzma)
 		if (nlits < 0)
 			break;
 
-		printf("pos %u nlits %d (%d %d)\n", pos32, nlits, back, len);
+		printf("pos %u (%c) nlits %d (%d %d)\n", pos32,
+		       *(lzma->mf.buffer + pos32), nlits, back, len);
 
 		err = encode_sequence(lzma, nlits, back, len, &pos32);
 	} while (!err);
@@ -577,11 +578,12 @@ void lzma_default_properties(struct lzma_properties *p, int level)
 
 #include <stdlib.h>
 #include <stdio.h>
-
+#include <fcntl.h>
+#include <unistd.h>
 
 #if 0
 const char text[] = "HABEABDABABABHHHEAAAAAAAA";
-#elif 1
+#elif 0
 const char text[] = "abcde_bcdefgh_abcdefghxxxxxxx";
 #else
 const char text[] = "The only time we actually leave the path spinning is if we're truncating "
@@ -593,8 +595,16 @@ const char text[] = "The only time we actually leave the path spinning is if we'
 "to have the path blocking, so just swap to blocking always.";
 #endif
 
-int main(void)
+static const uint8_t lzma_header[] = {
+	0x5D,				/* LZMA model properties (lc, lp, pb) in encoded form */
+	0x00, 0x00, 0x80, 0x00,		/* Dictionary size (32-bit unsigned integer, little-endian) */
+	0xFF, 0xFF, 0xFF, 0xFF,
+	0xFF, 0xFF, 0xFF, 0xFF,		/* Uncompressed size (64-bit unsigned integer, little-endian) */
+};
+
+int main(int argc, char *argv[])
 {
+	char *filename;
 	struct lzma_encoder lzmaenc = {0};
 	struct lzma_properties props = {
 		.mf.dictsize = 65536,
@@ -603,6 +613,7 @@ int main(void)
 	unsigned int nliterals;
 	unsigned int position = 0;
 	uint8_t buf[512];
+	int fd;
 
 	lzmaenc.mf.buffer = malloc(65536) + 1;
 	memcpy(lzmaenc.mf.buffer, text, sizeof(text));
@@ -619,6 +630,15 @@ int main(void)
 	rc_encode(&lzmaenc.rc, &lzmaenc.op, lzmaenc.oend);
 	printf("encoded length: %u\n", lzmaenc.op - buf);
 
+	if (argc < 2)
+		filename = "output.bin.lzma";
+	else
+		filename = argv[1];
+
+	fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	write(fd, lzma_header, sizeof(lzma_header));
+	write(fd, buf, lzmaenc.op - buf);
+	close(fd);
 
 #if 0
 	nliterals = lzma_get_optimum_fast(&lzmaenc, &back_res, &len_res);
