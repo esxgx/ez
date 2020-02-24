@@ -406,6 +406,17 @@ static void rep_match(struct lzma_encoder *lzma, const uint32_t pos_state,
 	}
 }
 
+static void encode_eopm(struct lzma_encoder *lzma)
+{
+	const uint32_t pos_state = (lzma->mf.cur - lzma->mf.lookahead) &
+				   lzma->pbMask;
+	const unsigned int state = lzma->state;
+
+	rc_bit(&lzma->rc, &lzma->isMatch[state][pos_state], 1);
+	rc_bit(&lzma->rc, &lzma->isRep[state], 0);
+	match(lzma, pos_state, UINT32_MAX, MATCH_LEN_MIN);
+}
+
 static int flush_symbol(struct lzma_encoder *lzma)
 {
 	if (rc_encode(&lzma->rc, &lzma->op, lzma->oend))
@@ -625,6 +636,10 @@ int main(int argc, char *argv[])
 	lzma_encoder_reset(&lzmaenc, &props);
 
 	__lzma_encode(&lzmaenc);
+
+	rc_encode(&lzmaenc.rc, &lzmaenc.op, lzmaenc.oend);
+
+	encode_eopm(&lzmaenc);
 	rc_flush(&lzmaenc.rc);
 
 	rc_encode(&lzmaenc.rc, &lzmaenc.op, lzmaenc.oend);
