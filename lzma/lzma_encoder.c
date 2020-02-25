@@ -121,10 +121,10 @@ static int lzma_get_optimum_fast(struct lzma_encoder *lzma,
 	const uint32_t nice_len = mf->nice_len;
 
 	struct lzma_match matches[MATCH_LEN_MAX + 1];
-	unsigned int matches_count, i, nlits;
+	unsigned int matches_count, i;
 	unsigned int longest_match_length, longest_match_back;
 	unsigned int best_replen, best_rep;
-	const uint8_t *ip, *ilimit;
+	const uint8_t *ip, *ilimit, *ista;
 	uint32_t len;
 	int ret;
 
@@ -208,7 +208,7 @@ static int lzma_get_optimum_fast(struct lzma_encoder *lzma,
 	if (longest_match_length > best_replen)
 		best_replen = 0;
 
-	nlits = 0;
+	ista = ip;
 
 	while (1) {
 		const struct lzma_match *victim;
@@ -258,7 +258,7 @@ static int lzma_get_optimum_fast(struct lzma_encoder *lzma,
 		longest_match_back = victim->dist;
 		best_replen = len;
 		best_rep = i;
-		++nlits;
+		++ip;
 	}
 
 	/* it's encoded as 0-based match distances */
@@ -269,7 +269,7 @@ static int lzma_get_optimum_fast(struct lzma_encoder *lzma,
 
 	*len_res = longest_match_length;
 	lzma_mf_skip(mf, longest_match_length - 2 + (ret < 0));
-	return nlits;
+	return ip - ista;
 
 out_literal:
 	*len_res = 0;
