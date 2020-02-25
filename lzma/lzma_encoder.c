@@ -125,6 +125,7 @@ static int lzma_get_optimum_fast(struct lzma_encoder *lzma,
 	unsigned int longest_match_length, longest_match_back;
 	unsigned int best_replen, best_rep;
 	const uint8_t *ip, *ilimit;
+	uint32_t len;
 	int ret;
 
 	if (!mf->lookahead) {
@@ -154,7 +155,6 @@ static int lzma_get_optimum_fast(struct lzma_encoder *lzma,
 	/* look for all valid repeat matches */
 	for (i = 0; i < LZMA_NUM_REPS; ++i) {
 		const uint8_t *const repp = ip - lzma->reps[i];
-		uint32_t len;
 
 		/* the first two bytes (MATCH_LEN_MIN == 2) do not match */
 		if (get_unaligned16(ip) != get_unaligned16(repp))
@@ -205,6 +205,9 @@ static int lzma_get_optimum_fast(struct lzma_encoder *lzma,
 		longest_match_back = victim->dist;
 	}
 
+	if (longest_match_length > best_replen)
+		best_replen = 0;
+
 	nlits = 0;
 
 	while (1) {
@@ -227,20 +230,43 @@ static int lzma_get_optimum_fast(struct lzma_encoder *lzma,
 		if (victim->len + 1 < longest_match_length)
 			break;
 
-		if (victim->len + 1 == longest_match_length &&
-		    !change_pair(victim->dist + nlits, longest_match_back))
+		len = UINT32_MAX;	/* replen */
+		for (i = 0; i < LZMA_NUM_REPS; ++i) {
+			if (lzma->reps[i] == victim->dist) {
+				len = victim->len;
+				break;
+			}
+		}
+
+		/* if the previous match is a rep, this should be longer */
+		if (len <= best_replen)
 			break;
 
-		if (victim->len == longest_match_length &&
-		    victim->dist + nlits >= longest_match_back)
-			break;
+		/* if it's not a rep */
+		if (len == UINT32_MAX) {
+			if (victim->len + 1 == longest_match_length &&
+			    !change_pair(victim->dist, longest_match_back))
+				break;
+
+			if (victim->len == longest_match_length &&
+			    get_pos_slot(victim->dist - 1) >=
+			    get_pos_slot(longest_match_back))
+				break;
+			len = 0;
+		}
 		longest_match_length = victim->len;
 		longest_match_back = victim->dist;
+		best_replen = len;
+		best_rep = i;
 		++nlits;
 	}
 
 	/* it's encoded as 0-based match distances */
-	*back_res = LZMA_NUM_REPS + longest_match_back - 1;
+	if (best_replen)
+		*back_res = best_rep;
+	else
+		*back_res = LZMA_NUM_REPS + longest_match_back - 1;
+
 	*len_res = longest_match_length;
 	lzma_mf_skip(mf, longest_match_length - 2 + (ret < 0));
 	return nlits;
