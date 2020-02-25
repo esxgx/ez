@@ -307,11 +307,12 @@ static int literal(struct lzma_encoder *lzma, uint32_t position)
 		{0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 4, 5};
 	struct lzma_mf *mf = &lzma->mf;
 	const uint8_t *ptr = &mf->buffer[mf->cur - mf->lookahead];
+	const unsigned int state = lzma->state;
 
 	probability *probs = lzma->literal +
 		3 * ((((position << 8) + ptr[-1]) & lzma->lpMask) << lzma->lc);
 
-	if (is_literal_state(lzma->state)) {
+	if (is_literal_state(state)) {
 		/*
 		 * Previous LZMA-symbol was a literal. Encode a normal
 		 * literal without a match byte.
@@ -328,7 +329,7 @@ static int literal(struct lzma_encoder *lzma, uint32_t position)
 		literal_matched(&lzma->rc, probs, match_byte, *ptr);
 	}
 
-	lzma->state = kLiteralNextStates[lzma->state];
+	lzma->state = kLiteralNextStates[state];
 }
 
 /* LenEnc_Encode */
@@ -425,10 +426,10 @@ static void rep_match(struct lzma_encoder *lzma, const uint32_t pos_state,
 	}
 
 	if (len == 1) {
-		lzma->state = is_literal_state(lzma->state) ? 9 : 11;
+		lzma->state = is_literal_state(state) ? 9 : 11;
 	} else {
 		length(&lzma->rc, &lzma->repLenEnc, pos_state, len);
-		lzma->state = is_literal_state(lzma->state) ? 8 : 11;
+		lzma->state = is_literal_state(state) ? 8 : 11;
 	}
 }
 
