@@ -205,8 +205,16 @@ static int lzma_get_optimum_fast(struct lzma_encoder *lzma,
 		longest_match_back = victim->dist;
 	}
 
-	if (longest_match_length > best_replen)
+	if (longest_match_length > best_replen + 1) {
 		best_replen = 0;
+
+		if (longest_match_length < 3 &&
+		    longest_match_back > 0x80)
+			goto out_literal;
+	} else {
+		longest_match_length = best_replen;
+		longest_match_back = 0;
+	}
 
 	ista = ip;
 
@@ -230,7 +238,24 @@ static int lzma_get_optimum_fast(struct lzma_encoder *lzma,
 		if (victim->len + 1 < longest_match_length)
 			break;
 
-		len = UINT32_MAX;	/* replen */
+		if (!best_replen) {
+			/* victim->len (should) >= longest_match_length - 1 */
+			const uint8_t *ip1 = ip + 1;
+			const uint32_t rl = max(2U, longest_match_length - 1);
+
+			/* TODO: lazy match for this */
+			for (i = 0; i < LZMA_NUM_REPS; ++i) {
+				if (!memcmp(ip1, ip1 - lzma->reps[i], rl)) {
+					*len_res = 0;
+					return ip1 - ista;
+				}
+			}
+
+			len = UINT32_MAX;
+		} else {
+			len = 0;
+		}
+
 		for (i = 0; i < LZMA_NUM_REPS; ++i) {
 			if (lzma->reps[i] == victim->dist) {
 				len = victim->len;
