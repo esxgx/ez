@@ -63,7 +63,9 @@ static inline unsigned int get_len_state(unsigned int len)
 }
 
 struct lzma_properties {
-	uint32_t lc, lp, pb;
+	uint32_t lc;	/* 0 <= lc <= 8, default = 3 */
+	uint32_t lp;	/* 0 <= lp <= 4, default = 0 */
+	uint32_t pb;	/* 0 <= pb <= 4, default = 2 */
 
 	struct lzma_mf_properties mf;
 };
@@ -460,8 +462,8 @@ static void rep_match(struct lzma_encoder *lzma, const uint32_t pos_state,
 
 static void encode_eopm(struct lzma_encoder *lzma)
 {
-	const uint32_t pos_state = (lzma->mf.cur - lzma->mf.lookahead) &
-				   lzma->pbMask;
+	const uint32_t pos_state =
+		(lzma->mf.cur - lzma->mf.lookahead) & lzma->pbMask;
 	const unsigned int state = lzma->state;
 
 	rc_bit(&lzma->rc, &lzma->isMatch[state][pos_state], 1);
