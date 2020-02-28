@@ -11,21 +11,21 @@
 #include "bytehash.h"
 #include <stdio.h>
 
-#define LZMA_HASH_2_SZ		(1U << 8)
+#define LZMA_HASH_2_SZ		(1U << 10)
 #define LZMA_HASH_3_SZ		(1U << 16)
 
 #define LZMA_HASH_3_BASE	(LZMA_HASH_2_SZ)
 #define LZMA_HASH_4_BASE	(LZMA_HASH_2_SZ + LZMA_HASH_3_SZ)
 
-static inline uint32_t mt_calc_hash_2(const uint8_t cur[2])
+static inline uint32_t mt_calc_dualhash(const uint8_t cur[2])
 {
-	return (crc32_byte_hashtable[cur[0]] ^ cur[1]) & (LZMA_HASH_2_SZ - 1);
+	return crc32_byte_hashtable[cur[0]] ^ cur[1];
 }
 
 static inline uint32_t mt_calc_hash_3(const uint8_t cur[3],
-				      const uint32_t hash_2_value)
+				      const uint32_t dualhash)
 {
-	return (hash_2_value ^ (cur[2] << 8)) & (LZMA_HASH_3_SZ - 1);
+	return (dualhash ^ (cur[2] << 8)) & (LZMA_HASH_3_SZ - 1);
 }
 
 static inline uint32_t mt_calc_hash_4(const uint8_t cur[4], unsigned int nbits)
@@ -57,9 +57,10 @@ static unsigned int lzma_mf_do_hc4_find(struct lzma_mf *mf,
 	const uint8_t *ilimit =
 		ip + nice_len < mf->iend ? ip + nice_len : mf->iend;
 
-	const uint32_t hash_2 = mt_calc_hash_2(ip);
+	const uint32_t dualhash = mt_calc_dualhash(ip);
+	const uint32_t hash_2 = dualhash & (LZMA_HASH_2_SZ - 1);
 	const uint32_t delta2 = pos - mf->hash[hash_2];
-	const uint32_t hash_3 = mt_calc_hash_3(ip, hash_2);
+	const uint32_t hash_3 = mt_calc_hash_3(ip, dualhash);
 	const uint32_t delta3 = pos - mf->hash[LZMA_HASH_3_BASE + hash_3];
 	const uint32_t hash_value = mt_calc_hash_4(ip, mf->hashbits);
 	uint32_t cur_match = mf->hash[LZMA_HASH_4_BASE + hash_value];
@@ -70,6 +71,7 @@ static unsigned int lzma_mf_do_hc4_find(struct lzma_mf *mf,
 	mf->hash[hash_2] = pos;
 	mf->hash[LZMA_HASH_3_BASE + hash_3] = pos;
 	mf->hash[LZMA_HASH_4_BASE + hash_value] = pos;
+	mf->chain[mf->chaincur] = cur_match;
 
 	mp = matches;
 	bestlen = 0;
@@ -136,7 +138,6 @@ static unsigned int lzma_mf_do_hc4_find(struct lzma_mf *mf,
 	}
 
 out:
-	mf->chain[mf->chaincur] = cur_match;
 	return mp - matches;
 }
 
@@ -159,7 +160,7 @@ void lzma_mf_skip(struct lzma_mf *mf, unsigned int bytetotal)
 
 	do {
 		const uint8_t *ip = mf->buffer + mf->cur;
-		uint32_t pos, hash_2, hash_3, hash_value;
+		uint32_t pos, dualhash, hash_2, hash_3, hash_value;
 
 		if (mf->iend - ip < 4) {
 			unhashedskip = bytetotal - bytecount;
@@ -171,10 +172,11 @@ void lzma_mf_skip(struct lzma_mf *mf, unsigned int bytetotal)
 
 		pos = mf->cur + mf->offset;
 
-		hash_2 = mt_calc_hash_2(ip);
+		dualhash = mt_calc_dualhash(ip);
+		hash_2 = dualhash & (LZMA_HASH_2_SZ - 1);
 		mf->hash[hash_2] = pos;
 
-		hash_3 = mt_calc_hash_3(ip, hash_2);
+		hash_3 = mt_calc_hash_3(ip, dualhash);
 		mf->hash[LZMA_HASH_3_BASE + hash_3] = pos;
 
 		hash_value = mt_calc_hash_4(ip, hashbits);
