@@ -81,7 +81,9 @@ struct lzma_encoder {
 
 	uint8_t *op, *oend;
 	bool finish;
+	bool need_eopm;
 
+	uint32_t dst_capacity;
 	enum lzma_lzma_state state;
 
 	/* the four most recent match distances */
@@ -669,7 +671,7 @@ static const uint8_t lzma_header[] = {
 
 int main(int argc, char *argv[])
 {
-	char *filename;
+	char *outfile;
 	struct lzma_encoder lzmaenc = {0};
 	struct lzma_properties props = {
 		.mf.dictsize = 65536,
@@ -678,11 +680,26 @@ int main(int argc, char *argv[])
 	unsigned int nliterals;
 	unsigned int position = 0;
 	uint8_t buf[512];
-	int fd;
+	int inf, outf;
 
 	lzmaenc.mf.buffer = malloc(65536) + 1;
-	memcpy(lzmaenc.mf.buffer, text, sizeof(text));
-	lzmaenc.mf.iend = lzmaenc.mf.buffer + sizeof(text);
+
+	if (argc >= 3) {
+		int len;
+
+		inf = open(argv[2], O_RDONLY);
+
+		len = lseek(inf, 0, SEEK_END);
+		printf("len: %d\n", len);
+
+		lseek(inf, 0, SEEK_SET);
+		read(inf, lzmaenc.mf.buffer, len);
+		close(inf);
+		lzmaenc.mf.iend = lzmaenc.mf.buffer + len;
+	} else {
+		memcpy(lzmaenc.mf.buffer, text, sizeof(text));
+		lzmaenc.mf.iend = lzmaenc.mf.buffer + sizeof(text);
+	}
 	lzmaenc.op = buf;
 	lzmaenc.oend = buf + sizeof(buf);
 	lzmaenc.finish = true;
@@ -701,14 +718,14 @@ int main(int argc, char *argv[])
 	printf("encoded length: %u\n", lzmaenc.op - buf);
 
 	if (argc < 2)
-		filename = "output.bin.lzma";
+		outfile = "output.bin.lzma";
 	else
-		filename = argv[1];
+		outfile = argv[1];
 
-	fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-	write(fd, lzma_header, sizeof(lzma_header));
-	write(fd, buf, lzmaenc.op - buf);
-	close(fd);
+	outf = open(outfile, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	write(outf, lzma_header, sizeof(lzma_header));
+	write(outf, buf, lzmaenc.op - buf);
+	close(outf);
 
 #if 0
 	nliterals = lzma_get_optimum_fast(&lzmaenc, &back_res, &len_res);
