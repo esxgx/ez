@@ -85,5 +85,11 @@ enum lzma_lzma_state {
 
 #define MARK_LIT ((uint32_t)-1)
 
+/*
+ * LZMA_REQUIRED_INPUT_MAX = number of required input bytes for worst case.
+ * Num bits = log2((2^11 / 31) ^ 22) + 26 < 134 + 26 = 160;
+ */
+#define LZMA_REQUIRED_INPUT_MAX 20
+
 #endif
 

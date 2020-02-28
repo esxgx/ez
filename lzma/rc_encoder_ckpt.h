@@ -18,8 +18,6 @@ struct lzma_rc_ckpt {
 
 void rc_write_checkpoint(struct lzma_rc_encoder *rc, struct lzma_rc_ckpt *cp)
 {
-	DBG_BUGON(rc->count > 0);
-
 	*cp = (struct lzma_rc_ckpt) { .low = rc->low,
 				      .extended_bytes = rc->extended_bytes,
 				      .range = rc->range,

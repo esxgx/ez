@@ -75,6 +75,16 @@ struct lzma_length_encoder {
 	probability high[kLenNumHighSymbols];
 };
 
+struct lzma_encoder_destsize {
+	struct lzma_rc_ckpt cp;
+
+	uint8_t *op;
+	uint32_t capacity;
+
+	uint32_t esz;
+	uint8_t ending[LZMA_REQUIRED_INPUT_MAX + 5];
+};
+
 struct lzma_encoder {
 	struct lzma_mf mf;
 	struct lzma_rc_encoder rc;
@@ -83,7 +93,6 @@ struct lzma_encoder {
 	bool finish;
 	bool need_eopm;
 
-	uint32_t dst_capacity;
 	enum lzma_lzma_state state;
 
 	/* the four most recent match distances */
@@ -114,6 +123,8 @@ struct lzma_encoder {
 		struct lzma_match matches[MATCH_LEN_MAX];
 		unsigned int matches_count;
 	} fast;
+
+	struct lzma_encoder_destsize *dstsize;
 };
 
 #define change_pair(smalldist, bigdist) (((bigdist) >> 7) > (smalldist))
@@ -303,15 +314,6 @@ static int lzma_get_optimum_fast(struct lzma_encoder *lzma,
 out_literal:
 	*len_res = 0;
 	return 1;
-}
-
-static int do_checkpoint(struct lzma_encoder *lzma)
-{
-	/* end marker is mandatory for this stream */
-//	if (lzma->need_eopm) {
-
-//	}
-	return 0;
 }
 
 static void literal_matched(struct lzma_rc_encoder *rc, probability *probs,
@@ -513,12 +515,85 @@ static void encode_eopm(struct lzma_encoder *lzma)
 	match(lzma, pos_state, UINT32_MAX, MATCH_LEN_MIN);
 }
 
-static int flush_symbol(struct lzma_encoder *lzma)
+static int __flush_symbol_destsize(struct lzma_encoder *lzma)
 {
+	uint8_t *op2;
+	unsigned symbols_size;
+
+	if (lzma->dstsize->capacity < 5)
+		return -ENOSPC;
+
+	if (!lzma->rc.pos) {
+		rc_write_checkpoint(&lzma->rc, &lzma->dstsize->cp);
+		lzma->dstsize->op = lzma->op;
+	}
+
 	if (rc_encode(&lzma->rc, &lzma->op, lzma->oend))
 		return -ENOSPC;
 
+	op2 = lzma->op;
+	symbols_size = op2 - lzma->dstsize->op;
+	if (lzma->dstsize->capacity < symbols_size + 5)
+		goto err_enospc;
+
+	if (!lzma->need_eopm)
+		goto out;
+
+	if (lzma->dstsize->capacity < symbols_size +
+	    LZMA_REQUIRED_INPUT_MAX + 5) {
+		struct lzma_rc_ckpt cp2;
+		struct lzma_endstate endstate;
+		uint8_t ending[sizeof(lzma->dstsize->ending)];
+		uint8_t *ep;
+		unsigned int esz;
+
+		rc_write_checkpoint(&lzma->rc, &cp2);
+		encode_eopm_stateless(lzma, &endstate);
+		rc_flush(&lzma->rc);
+
+		ep = ending;
+		if (rc_encode(&lzma->rc, &ep, ending + sizeof(ending)))
+			DBG_BUGON(1);
+
+		esz = ep - ending;
+
+		if (lzma->dstsize->capacity < symbols_size + esz)
+			goto err_enospc;
+		rc_restore_checkpoint(&lzma->rc, &cp2);
+
+		memcpy(lzma->dstsize->ending, ending, sizeof(ending));
+		lzma->dstsize->esz = esz;
+	}
+out:
+	lzma->dstsize->capacity -= symbols_size;
 	return 0;
+
+err_enospc:
+	rc_restore_checkpoint(&lzma->rc, &lzma->dstsize->cp);
+	lzma->op = lzma->dstsize->op;
+	lzma->dstsize->capacity = 0;
+	return -ENOSPC;
+}
+
+static int flush_symbol(struct lzma_encoder *lzma)
+{
+	if (lzma->rc.count && lzma->dstsize) {
+		const unsigned int safemargin =
+			5 + (LZMA_REQUIRED_INPUT_MAX << !!lzma->need_eopm);
+		uint8_t *op;
+		bool ret;
+
+		if (lzma->dstsize->capacity < safemargin)
+			return __flush_symbol_destsize(lzma);
+
+		op = lzma->op;
+		ret = rc_encode(&lzma->rc, &lzma->op, lzma->oend);
+
+		lzma->dstsize->capacity -= lzma->op - op;
+		return ret ? -ENOSPC : 0;
+	}
+
+	return rc_encode(&lzma->rc, &lzma->op, lzma->oend) ? -ENOSPC : 0;
 }
 
 static int encode_symbol(struct lzma_encoder *lzma, uint32_t back,
@@ -586,8 +661,10 @@ static int __lzma_encode(struct lzma_encoder *lzma)
 
 		nlits = lzma_get_optimum_fast(lzma, &back, &len);
 
-		if (nlits < 0)
+		if (nlits < 0) {
+			err = nlits;
 			break;
+		}
 
 		printf("pos %u (%c) nlits %d (%d %d)\n", pos32,
 		       *(lzma->mf.buffer + pos32), nlits, back, len);
@@ -716,6 +793,8 @@ int main(int argc, char *argv[])
 	struct lzma_properties props = {
 		.mf.dictsize = 65536,
 	};
+	struct lzma_encoder_destsize dstsize;
+
 	unsigned int back_res = 0, len_res = 0;
 	unsigned int nliterals;
 	unsigned int position = 0;
@@ -744,6 +823,11 @@ int main(int argc, char *argv[])
 	lzmaenc.oend = buf + sizeof(buf);
 	lzmaenc.finish = true;
 
+	lzmaenc.need_eopm = true;
+	dstsize.capacity = 270; //UINT32_MAX;
+	lzmaenc.dstsize = &dstsize;
+
+
 	lzma_default_properties(&props, 5);
 	lzma_encoder_reset(&lzmaenc, &props);
 
@@ -751,10 +835,16 @@ int main(int argc, char *argv[])
 
 	rc_encode(&lzmaenc.rc, &lzmaenc.op, lzmaenc.oend);
 
+	memcpy(lzmaenc.op, dstsize.ending, dstsize.esz);
+	lzmaenc.op += dstsize.esz;
+#if 0
 	encode_eopm(&lzmaenc);
 	rc_flush(&lzmaenc.rc);
 
 	rc_encode(&lzmaenc.rc, &lzmaenc.op, lzmaenc.oend);
+	printf("end: %p\n", lzmaenc.op);
+#endif
+
 	printf("encoded length: %u\n", lzmaenc.op - buf);
 
 	if (argc < 2)
