@@ -462,6 +462,46 @@ static void rep_match(struct lzma_encoder *lzma, const uint32_t pos_state,
 	}
 }
 
+struct lzma_endstate {
+	struct lzma_length_encoder lenEnc;
+
+	probability simpleMatch[2];
+	probability posSlot[kNumPosSlotBits];
+	probability posAlign[kNumAlignBits];
+};
+
+static void encode_eopm_stateless(struct lzma_encoder *lzma,
+				  struct lzma_endstate *endstate)
+{
+	const uint32_t pos_state =
+		(lzma->mf.cur - lzma->mf.lookahead) & lzma->pbMask;
+	const unsigned int state = lzma->state;
+	unsigned int i;
+
+	endstate->simpleMatch[0] = lzma->isMatch[state][pos_state];
+	endstate->simpleMatch[1] = lzma->isRep[state];
+	endstate->lenEnc = lzma->lenEnc;
+
+	rc_bit(&lzma->rc, endstate->simpleMatch, 1);
+	rc_bit(&lzma->rc, endstate->simpleMatch + 1, 0);
+	length(&lzma->rc, &endstate->lenEnc, pos_state, kMatchMinLen);
+
+	for (i = 0; i < kNumPosSlotBits; ++i) {
+		endstate->posSlot[i] =
+			lzma->posSlotEncoder[0][(1 << (i + 1)) - 1];
+		rc_bit(&lzma->rc, endstate->posSlot + i, 1);
+	}
+
+	rc_direct(&lzma->rc, (1 << (30 - kNumAlignBits)) - 1,
+		  30 - kNumAlignBits);
+
+	for (i = 0; i < kNumAlignBits; ++i) {
+		endstate->posAlign[i] =
+			lzma->posAlignEncoder[(1 << (i + 1)) - 1];
+		rc_bit(&lzma->rc, endstate->posAlign + i, 1);
+	}
+}
+
 static void encode_eopm(struct lzma_encoder *lzma)
 {
 	const uint32_t pos_state =
