@@ -798,8 +798,10 @@ int main(int argc, char *argv[])
 	unsigned int back_res = 0, len_res = 0;
 	unsigned int nliterals;
 	unsigned int position = 0;
-	uint8_t buf[512];
+	uint8_t buf[4096];
 	int inf, outf;
+
+	int err;
 
 	lzmaenc.mf.buffer = malloc(65536) + 1;
 
@@ -824,26 +826,28 @@ int main(int argc, char *argv[])
 	lzmaenc.finish = true;
 
 	lzmaenc.need_eopm = true;
-	dstsize.capacity = 270; //UINT32_MAX;
+	dstsize.capacity = 4096; //UINT32_MAX;
 	lzmaenc.dstsize = &dstsize;
 
 
 	lzma_default_properties(&props, 5);
 	lzma_encoder_reset(&lzmaenc, &props);
 
-	__lzma_encode(&lzmaenc);
+	err = __lzma_encode(&lzmaenc);
+
+	printf("%d\n", err);
 
 	rc_encode(&lzmaenc.rc, &lzmaenc.op, lzmaenc.oend);
 
-	memcpy(lzmaenc.op, dstsize.ending, dstsize.esz);
-	lzmaenc.op += dstsize.esz;
-#if 0
-	encode_eopm(&lzmaenc);
-	rc_flush(&lzmaenc.rc);
+	if (err != -ERANGE) {
+		memcpy(lzmaenc.op, dstsize.ending, dstsize.esz);
+		lzmaenc.op += dstsize.esz;
+	} else {
+		encode_eopm(&lzmaenc);
+		rc_flush(&lzmaenc.rc);
 
-	rc_encode(&lzmaenc.rc, &lzmaenc.op, lzmaenc.oend);
-	printf("end: %p\n", lzmaenc.op);
-#endif
+		rc_encode(&lzmaenc.rc, &lzmaenc.op, lzmaenc.oend);
+	}
 
 	printf("encoded length: %u\n", lzmaenc.op - buf);
 
