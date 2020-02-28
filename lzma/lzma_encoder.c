@@ -8,7 +8,7 @@
 #include <ez/bitops.h>
 #include "lzma_common.h"
 #include "mf.h"
-#include "rc_encoder.h"
+#include "rc_encoder_ckpt.h"
 #include <stdio.h>
 
 #define kNumBitModelTotalBits	11

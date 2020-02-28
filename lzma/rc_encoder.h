@@ -20,6 +20,12 @@
  */
 #define RC_SYMBOLS_MAX 58
 
+#define RC_BIT_0	0
+#define RC_BIT_1	1
+#define RC_DIRECT_0	2
+#define RC_DIRECT_1	3
+#define RC_FLUSH	4
+
 struct lzma_rc_encoder {
 	uint64_t low;
 	uint64_t extended_bytes;
@@ -32,14 +38,8 @@ struct lzma_rc_encoder {
 	/* rc_encode()'s position in the tables */
 	uint8_t pos;
 
-	/* Symbols to encode */
-	enum {
-		RC_BIT_0,
-		RC_BIT_1,
-		RC_DIRECT_0,
-		RC_DIRECT_1,
-		RC_FLUSH,
-	} symbols[RC_SYMBOLS_MAX];
+	/* Symbols to encode (use uint8_t so can be in a single cacheline.) */
+	uint8_t symbols[RC_SYMBOLS_MAX];
 
 	/* Probabilities associated with RC_BIT_0 or RC_BIT_1 */
 	probability *probs[RC_SYMBOLS_MAX];
